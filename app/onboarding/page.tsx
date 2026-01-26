@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
@@ -18,11 +18,12 @@ import {
   Loader2,
   Check,
   Sparkles,
+  Edit2,
 } from "lucide-react";
-import { submitOnboardingData, uploadResume, type UserProfile } from "@/lib/api";
+import { submitOnboardingData, uploadResume, analyzeProfile, type UserProfile } from "@/lib/api";
 import Link from "next/link";
 
-const STEPS = ["Persona", "Skills", "Socials", "Achievements", "Verification"];
+const STEPS = ["Persona", "Skills", "Socials", "Achievements", "Review", "Verification"];
 
 const SKILL_CATEGORIES = {
   "Programming Languages": [
@@ -115,10 +116,12 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<UserProfile>({
     persona: "student",
+    name: "",
     university: "",
     gradYear: "",
     role: "",
@@ -135,8 +138,10 @@ export default function OnboardingPage() {
 
   const [skillInput, setSkillInput] = useState("");
   const [skillSearch, setSkillSearch] = useState("");
+
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [expandedSkills, setExpandedSkills] = useState(false);
 
   const updateFormData = useCallback(
     (updates: Partial<UserProfile>) => {
@@ -198,11 +203,27 @@ export default function OnboardingPage() {
     []
   );
 
-  const nextStep = useCallback(() => {
+  const nextStep = useCallback(async () => {
     if (currentStep < STEPS.length - 1) {
-      setCurrentStep((prev) => prev + 1);
+      if (currentStep === 3) { // Moving from Achievements to Review
+        setIsAnalyzing(true);
+        try {
+          const analysis = await analyzeProfile(formData);
+          if (analysis.success && analysis.data) {
+            updateFormData(analysis.data);
+          }
+        } catch (err) {
+          console.error(err);
+          // Optional: Set error state here if critical, or just proceed with manual review
+        } finally {
+          setIsAnalyzing(false);
+          setCurrentStep((prev) => prev + 1);
+        }
+      } else {
+        setCurrentStep((prev) => prev + 1);
+      }
     }
-  }, [currentStep]);
+  }, [currentStep, formData, updateFormData]);
 
   const prevStep = useCallback(() => {
     if (currentStep > 0) {
@@ -222,9 +243,19 @@ export default function OnboardingPage() {
         }
       }
 
+      // Save initial profile to local storage (in case API call fails or for immediate access)
+      localStorage.setItem("gapdebug_profile", JSON.stringify(formData));
+
       const result = await submitOnboardingData(formData);
 
-      if (result.success) {
+      if (result.success && result.data) {
+        // Update local storage with profile ID
+        const updatedProfile = {
+          ...formData,
+          profileId: result.data.profileId
+        };
+        localStorage.setItem("gapdebug_profile", JSON.stringify(updatedProfile));
+
         router.push("/dashboard");
       } else {
         setError(result.error || "Verification failed. Please try again.");
@@ -271,6 +302,8 @@ export default function OnboardingPage() {
     }),
   };
 
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
@@ -289,10 +322,10 @@ export default function OnboardingPage() {
               <div
                 key={step}
                 className={`w-2 h-2 rounded-full transition-colors ${i === currentStep
-                    ? "bg-accent"
-                    : i < currentStep
-                      ? "bg-primary"
-                      : "bg-border"
+                  ? "bg-accent"
+                  : i < currentStep
+                    ? "bg-primary"
+                    : "bg-border"
                   }`}
               />
             ))}
@@ -313,558 +346,728 @@ export default function OnboardingPage() {
       {/* Main Content */}
       <main className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-xl">
-          <AnimatePresence mode="wait" custom={1}>
+          {isAnalyzing ? (
             <motion.div
-              key={currentStep}
-              custom={1}
-              variants={slideVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ duration: 0.3, ease: "easeInOut" }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="text-center py-20"
             >
-              {/* Step 1: Persona */}
-              {currentStep === 0 && (
-                <div className="space-y-8">
-                  <div>
-                    <h1 className="text-2xl font-bold text-foreground mb-2">
-                      Tell us who you are
-                    </h1>
-                    <p className="text-muted-foreground">
-                      This helps us personalize your experience.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      onClick={() => updateFormData({ persona: "student" })}
-                      className={`p-6 rounded-lg border-2 transition-all text-left ${formData.persona === "student"
-                          ? "border-accent bg-accent/5"
-                          : "border-border hover:border-accent/50"
-                        }`}
-                    >
-                      <GraduationCap
-                        className={`w-8 h-8 mb-3 ${formData.persona === "student" ? "text-accent" : "text-muted-foreground"}`}
-                      />
-                      <div className="font-semibold text-foreground">
-                        Student
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        Currently in school
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => updateFormData({ persona: "job_seeker" })}
-                      className={`p-6 rounded-lg border-2 transition-all text-left ${formData.persona === "job_seeker"
-                          ? "border-accent bg-accent/5"
-                          : "border-border hover:border-accent/50"
-                        }`}
-                    >
-                      <Briefcase
-                        className={`w-8 h-8 mb-3 ${formData.persona === "job_seeker" ? "text-accent" : "text-muted-foreground"}`}
-                      />
-                      <div className="font-semibold text-foreground">
-                        Job Seeker
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        Looking for work
-                      </div>
-                    </button>
-                  </div>
-
-                  {formData.persona === "student" && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-4"
-                    >
-                      <div>
-                        <label className="block text-sm font-medium text-foreground mb-2">
-                          University
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.university}
-                          onChange={(e) =>
-                            updateFormData({ university: e.target.value })
-                          }
-                          placeholder="e.g. Stanford University"
-                          className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-foreground mb-2">
-                          Expected Graduation Year
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.gradYear}
-                          onChange={(e) =>
-                            updateFormData({ gradYear: e.target.value })
-                          }
-                          placeholder="e.g. 2025"
-                          className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {formData.persona === "job_seeker" && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-4"
-                    >
-                      <div>
-                        <label className="block text-sm font-medium text-foreground mb-2">
-                          Target Role
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.role}
-                          onChange={(e) =>
-                            updateFormData({ role: e.target.value })
-                          }
-                          placeholder="e.g. Frontend Developer"
-                          className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-foreground mb-2">
-                          Years of Experience
-                        </label>
-                        <input
-                          type="number"
-                          value={formData.yearsOfExperience || ""}
-                          onChange={(e) =>
-                            updateFormData({
-                              yearsOfExperience: parseInt(e.target.value) || 0,
-                            })
-                          }
-                          placeholder="e.g. 2"
-                          min="0"
-                          className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                        />
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-              )}
-
-              {/* Step 2: Skills */}
-              {currentStep === 1 && (
-                <div className="space-y-6">
-                  <div>
-                    <h1 className="text-2xl font-bold text-foreground mb-2">
-                      What skills do you have?
-                    </h1>
-                    <p className="text-muted-foreground">
-                      Search and select your skills, or add custom ones.
-                    </p>
-                  </div>
-
-                  {/* Selected Skills */}
-                  {formData.skills.length > 0 && (
-                    <div className="p-4 bg-muted/50 rounded-lg">
-                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                        Selected ({formData.skills.length})
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {formData.skills.map((skill) => (
-                          <motion.span
-                            key={skill}
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent text-accent-foreground rounded-md text-sm font-medium"
-                          >
-                            {skill}
-                            <button
-                              type="button"
-                              onClick={() => removeSkill(skill)}
-                              className="hover:opacity-70 transition-opacity"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </motion.span>
-                        ))}
-                      </div>
+              <div className="w-20 h-20 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Loader2 className="w-10 h-10 text-accent animate-spin" />
+              </div>
+              <h2 className="text-2xl font-bold text-foreground mb-2">
+                Analyzing Profile...
+              </h2>
+              <p className="text-muted-foreground max-w-sm mx-auto">
+                Our AI is reading your resume, socials, and achievements to build your professional profile.
+              </p>
+            </motion.div>
+          ) : (
+            <AnimatePresence mode="wait" custom={1}>
+              <motion.div
+                key={currentStep}
+                custom={1}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+              >
+                {/* Step 1: Persona */}
+                {currentStep === 0 && (
+                  <div className="space-y-8">
+                    <div>
+                      <h1 className="text-2xl font-bold text-foreground mb-2">
+                        Tell us who you are
+                      </h1>
+                      <p className="text-muted-foreground">
+                        This helps us personalize your experience.
+                      </p>
                     </div>
-                  )}
 
-                  {/* Search Skills */}
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={skillSearch}
-                      onChange={(e) => setSkillSearch(e.target.value)}
-                      placeholder="Search skills..."
-                      className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    {skillSearch && filteredSkills.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-input rounded-md shadow-lg z-10 max-h-48 overflow-y-auto">
-                        {filteredSkills.slice(0, 8).map((skill) => (
+                    <div className="grid grid-cols-2 gap-4">
+                      <button
+                        onClick={() => updateFormData({ persona: "student" })}
+                        className={`p-6 rounded-lg border-2 transition-all text-left ${formData.persona === "student"
+                          ? "border-accent bg-accent/5"
+                          : "border-border hover:border-accent/50"
+                          }`}
+                      >
+                        <GraduationCap
+                          className={`w-8 h-8 mb-3 ${formData.persona === "student" ? "text-accent" : "text-muted-foreground"}`}
+                        />
+                        <div className="font-semibold text-foreground">
+                          Student
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-1">
+                          Currently in school
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => updateFormData({ persona: "job_seeker" })}
+                        className={`p-6 rounded-lg border-2 transition-all text-left ${formData.persona === "job_seeker"
+                          ? "border-accent bg-accent/5"
+                          : "border-border hover:border-accent/50"
+                          }`}
+                      >
+                        <Briefcase
+                          className={`w-8 h-8 mb-3 ${formData.persona === "job_seeker" ? "text-accent" : "text-muted-foreground"}`}
+                        />
+                        <div className="font-semibold text-foreground">
+                          Job Seeker
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-1">
+                          Looking for work
+                        </div>
+                      </button>
+                    </div>
+
+                    {formData.persona === "student" && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="space-y-4"
+                      >
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-2">
+                            University
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.university}
+                            onChange={(e) =>
+                              updateFormData({ university: e.target.value })
+                            }
+                            placeholder="e.g. Stanford University"
+                            className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-2">
+                            Expected Graduation Year
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.gradYear}
+                            onChange={(e) =>
+                              updateFormData({ gradYear: e.target.value })
+                            }
+                            placeholder="e.g. 2025"
+                            className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {formData.persona === "job_seeker" && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="space-y-4"
+                      >
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-2">
+                            Target Role
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.role}
+                            onChange={(e) =>
+                              updateFormData({ role: e.target.value })
+                            }
+                            placeholder="e.g. Frontend Developer"
+                            className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-2">
+                            Years of Experience
+                          </label>
+                          <input
+                            type="number"
+                            value={formData.yearsOfExperience || ""}
+                            onChange={(e) =>
+                              updateFormData({
+                                yearsOfExperience: parseInt(e.target.value) || 0,
+                              })
+                            }
+                            placeholder="e.g. 2"
+                            min="0"
+                            className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring"
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+                )}
+
+                {/* Step 2: Skills */}
+                {currentStep === 1 && (
+                  <div className="space-y-6">
+                    <div>
+                      <h1 className="text-2xl font-bold text-foreground mb-2">
+                        What skills do you have?
+                      </h1>
+                      <p className="text-muted-foreground">
+                        Search and select your skills, or add custom ones.
+                      </p>
+                    </div>
+
+                    {/* Selected Skills */}
+                    {formData.skills.length > 0 && (
+                      <div className="p-4 bg-muted/50 rounded-lg">
+                        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+                          Selected ({formData.skills.length})
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {formData.skills.map((skill) => (
+                            <motion.span
+                              key={skill}
+                              initial={{ opacity: 0, scale: 0.8 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent text-accent-foreground rounded-md text-sm font-medium"
+                            >
+                              {skill}
+                              <button
+                                type="button"
+                                onClick={() => removeSkill(skill)}
+                                className="hover:opacity-70 transition-opacity"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </motion.span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Search Skills */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={skillSearch}
+                        onChange={(e) => setSkillSearch(e.target.value)}
+                        placeholder="Search skills..."
+                        className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      {skillSearch && filteredSkills.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-input rounded-md shadow-lg z-10 max-h-48 overflow-y-auto">
+                          {filteredSkills.slice(0, 8).map((skill) => (
+                            <button
+                              key={skill}
+                              type="button"
+                              onClick={() => {
+                                toggleSkill(skill);
+                                setSkillSearch("");
+                              }}
+                              className={`w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors flex items-center justify-between ${formData.skills.includes(skill)
+                                ? "text-accent font-medium"
+                                : "text-foreground"
+                                }`}
+                            >
+                              {skill}
+                              {formData.skills.includes(skill) && (
+                                <Check className="w-4 h-4" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Category Tabs */}
+                    <div className="flex flex-wrap gap-2">
+                      {Object.keys(SKILL_CATEGORIES).map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          onClick={() =>
+                            setActiveCategory(
+                              activeCategory === category ? null : category
+                            )
+                          }
+                          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeCategory === category
+                            ? "bg-secondary text-secondary-foreground"
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            }`}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Skills Grid */}
+                    {activeCategory && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="flex flex-wrap gap-2 p-4 bg-card border border-border rounded-lg"
+                      >
+                        {SKILL_CATEGORIES[
+                          activeCategory as keyof typeof SKILL_CATEGORIES
+                        ].map((skill) => (
                           <button
                             key={skill}
                             type="button"
-                            onClick={() => {
-                              toggleSkill(skill);
-                              setSkillSearch("");
-                            }}
-                            className={`w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors flex items-center justify-between ${formData.skills.includes(skill)
-                                ? "text-accent font-medium"
-                                : "text-foreground"
+                            onClick={() => toggleSkill(skill)}
+                            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${formData.skills.includes(skill)
+                              ? "bg-accent text-accent-foreground"
+                              : "bg-muted text-foreground hover:bg-muted/80"
                               }`}
                           >
                             {skill}
-                            {formData.skills.includes(skill) && (
-                              <Check className="w-4 h-4" />
-                            )}
                           </button>
                         ))}
-                      </div>
+                      </motion.div>
                     )}
-                  </div>
 
-                  {/* Category Tabs */}
-                  <div className="flex flex-wrap gap-2">
-                    {Object.keys(SKILL_CATEGORIES).map((category) => (
-                      <button
-                        key={category}
-                        type="button"
-                        onClick={() =>
-                          setActiveCategory(
-                            activeCategory === category ? null : category
-                          )
-                        }
-                        className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeCategory === category
-                            ? "bg-secondary text-secondary-foreground"
-                            : "bg-muted text-muted-foreground hover:bg-muted/80"
-                          }`}
-                      >
-                        {category}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Skills Grid */}
-                  {activeCategory && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="flex flex-wrap gap-2 p-4 bg-card border border-border rounded-lg"
-                    >
-                      {SKILL_CATEGORIES[
-                        activeCategory as keyof typeof SKILL_CATEGORIES
-                      ].map((skill) => (
+                    {/* Add Custom Skill */}
+                    <div className="pt-4 border-t border-border">
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+                        Add custom skill
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={skillInput}
+                          onChange={(e) => setSkillInput(e.target.value)}
+                          onKeyDown={handleKeyDown}
+                          placeholder="Type a skill not listed above..."
+                          className="flex-1 px-4 py-2.5 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+                        />
                         <button
-                          key={skill}
                           type="button"
-                          onClick={() => toggleSkill(skill)}
-                          className={`px-3 py-1.5 text-sm rounded-md transition-colors ${formData.skills.includes(skill)
-                              ? "bg-accent text-accent-foreground"
-                              : "bg-muted text-foreground hover:bg-muted/80"
-                            }`}
+                          onClick={addSkill}
+                          disabled={!skillInput.trim()}
+                          className="px-4 py-2.5 bg-secondary text-secondary-foreground text-sm font-medium rounded-md hover:bg-secondary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {skill}
+                          Add
                         </button>
-                      ))}
-                    </motion.div>
-                  )}
-
-                  {/* Add Custom Skill */}
-                  <div className="pt-4 border-t border-border">
-                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-                      Add custom skill
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={skillInput}
-                        onChange={(e) => setSkillInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Type a skill not listed above..."
-                        className="flex-1 px-4 py-2.5 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
-                      />
-                      <button
-                        type="button"
-                        onClick={addSkill}
-                        disabled={!skillInput.trim()}
-                        className="px-4 py-2.5 bg-secondary text-secondary-foreground text-sm font-medium rounded-md hover:bg-secondary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Add
-                      </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Step 3: Socials */}
-              {currentStep === 2 && (
-                <div className="space-y-8">
-                  <div>
-                    <h1 className="text-2xl font-bold text-foreground mb-2">
-                      Connect your profiles
-                    </h1>
-                    <p className="text-muted-foreground">
-                      Optional, but helps us understand your background better.
-                    </p>
+                {/* Step 3: Socials */}
+                {currentStep === 2 && (
+                  <div className="space-y-8">
+                    <div>
+                      <h1 className="text-2xl font-bold text-foreground mb-2">
+                        Connect your profiles
+                      </h1>
+                      <p className="text-muted-foreground">
+                        Optional, but helps us understand your background better.
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
+                          <Linkedin className="w-4 h-4 text-[#0077B5]" />
+                          LinkedIn
+                        </label>
+                        <input
+                          type="url"
+                          value={formData.socials.linkedin}
+                          onChange={(e) =>
+                            updateFormData({
+                              socials: {
+                                ...formData.socials,
+                                linkedin: e.target.value,
+                              },
+                            })
+                          }
+                          placeholder="https://linkedin.com/in/yourprofile"
+                          className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
+                          <Github className="w-4 h-4" />
+                          GitHub
+                        </label>
+                        <input
+                          type="url"
+                          value={formData.socials.github}
+                          onChange={(e) =>
+                            updateFormData({
+                              socials: {
+                                ...formData.socials,
+                                github: e.target.value,
+                              },
+                            })
+                          }
+                          placeholder="https://github.com/yourusername"
+                          className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
+                          <Twitter className="w-4 h-4 text-[#1DA1F2]" />
+                          Twitter
+                        </label>
+                        <input
+                          type="url"
+                          value={formData.socials.twitter}
+                          onChange={(e) =>
+                            updateFormData({
+                              socials: {
+                                ...formData.socials,
+                                twitter: e.target.value,
+                              },
+                            })
+                          }
+                          placeholder="https://twitter.com/yourhandle"
+                          className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                    </div>
                   </div>
+                )}
 
-                  <div className="space-y-4">
+                {/* Step 4: Achievements */}
+                {currentStep === 3 && (
+                  <div className="space-y-8">
                     <div>
-                      <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
-                        <Linkedin className="w-4 h-4 text-[#0077B5]" />
-                        LinkedIn
-                      </label>
-                      <input
-                        type="url"
-                        value={formData.socials.linkedin}
-                        onChange={(e) =>
-                          updateFormData({
-                            socials: {
-                              ...formData.socials,
-                              linkedin: e.target.value,
-                            },
-                          })
-                        }
-                        placeholder="https://linkedin.com/in/yourprofile"
-                        className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
+                      <h1 className="text-2xl font-bold text-foreground mb-2">
+                        Share your achievements
+                      </h1>
+                      <p className="text-muted-foreground">
+                        Hackathons, olympiads, certifications, and more.
+                      </p>
                     </div>
 
-                    <div>
-                      <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
-                        <Github className="w-4 h-4" />
-                        GitHub
-                      </label>
-                      <input
-                        type="url"
-                        value={formData.socials.github}
-                        onChange={(e) =>
-                          updateFormData({
-                            socials: {
-                              ...formData.socials,
-                              github: e.target.value,
-                            },
-                          })
-                        }
-                        placeholder="https://github.com/yourusername"
-                        className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          Hackathons & Competitions
+                        </label>
+                        <textarea
+                          value={formData.achievements}
+                          onChange={(e) =>
+                            updateFormData({ achievements: e.target.value })
+                          }
+                          placeholder="e.g. Won 2nd place at HackMIT 2024, Participated in Google Code Jam..."
+                          rows={4}
+                          className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                        />
+                      </div>
 
-                    <div>
-                      <label className="flex items-center gap-2 text-sm font-medium text-foreground mb-2">
-                        <Twitter className="w-4 h-4 text-[#1DA1F2]" />
-                        Twitter
-                      </label>
-                      <input
-                        type="url"
-                        value={formData.socials.twitter}
-                        onChange={(e) =>
-                          updateFormData({
-                            socials: {
-                              ...formData.socials,
-                              twitter: e.target.value,
-                            },
-                          })
-                        }
-                        placeholder="https://twitter.com/yourhandle"
-                        className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {/* Step 4: Achievements */}
-              {currentStep === 3 && (
-                <div className="space-y-8">
-                  <div>
-                    <h1 className="text-2xl font-bold text-foreground mb-2">
-                      Share your achievements
-                    </h1>
-                    <p className="text-muted-foreground">
-                      Hackathons, olympiads, certifications, and more.
-                    </p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">
-                        Hackathons & Competitions
-                      </label>
-                      <textarea
-                        value={formData.achievements}
-                        onChange={(e) =>
-                          updateFormData({ achievements: e.target.value })
-                        }
-                        placeholder="e.g. Won 2nd place at HackMIT 2024, Participated in Google Code Jam..."
-                        rows={4}
-                        className="w-full px-4 py-3 bg-card border border-input rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">
-                        Resume Upload
-                      </label>
-                      <div
-                        className={`border-2 border-dashed rounded-md p-8 text-center transition-colors ${resumeFile
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          Resume Upload
+                        </label>
+                        <div
+                          className={`border-2 border-dashed rounded-md p-8 text-center transition-colors ${resumeFile
                             ? "border-accent bg-accent/5"
                             : "border-input hover:border-accent/50"
-                          }`}
-                      >
-                        {resumeFile ? (
-                          <div className="flex items-center justify-center gap-3">
-                            <Check className="w-5 h-5 text-accent" />
-                            <span className="text-foreground font-medium">
-                              {resumeFile.name}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setResumeFile(null)}
-                              className="text-muted-foreground hover:text-destructive transition-colors"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <label className="cursor-pointer">
-                            <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                            <div className="text-sm text-foreground font-medium">
-                              Click to upload or drag and drop
+                            }`}
+                        >
+                          {resumeFile ? (
+                            <div className="flex items-center justify-center gap-3">
+                              <Check className="w-5 h-5 text-accent" />
+                              <span className="text-foreground font-medium">
+                                {resumeFile.name}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setResumeFile(null)}
+                                className="text-muted-foreground hover:text-destructive transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
                             </div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              PDF, DOC, or DOCX (max 5MB)
-                            </div>
-                            <input
-                              type="file"
-                              accept=".pdf,.doc,.docx"
-                              onChange={handleFileChange}
-                              className="hidden"
-                            />
-                          </label>
-                        )}
+                          ) : (
+                            <label className="cursor-pointer">
+                              <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                              <div className="text-sm text-foreground font-medium">
+                                Click to upload or drag and drop
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                PDF, DOC, or DOCX (max 5MB)
+                              </div>
+                              <input
+                                type="file"
+                                accept=".pdf,.doc,.docx"
+                                onChange={handleFileChange}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Step 5: Verification */}
-              {currentStep === 4 && (
-                <div className="text-center py-12">
-                  {isSubmitting ? (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="space-y-6"
-                    >
-                      <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto">
-                        <Loader2 className="w-8 h-8 text-accent animate-spin" />
-                      </div>
+
+
+                {/* Step 5: Review */}
+                {currentStep === 4 && (
+                  <div className="space-y-8">
+                    <div>
+                      <h1 className="text-2xl font-bold text-foreground mb-2">
+                        Review & Confirm
+                      </h1>
+                      <p className="text-muted-foreground">
+                        We analyzed your profile. Please confirm the details below.
+                      </p>
+                    </div>
+
+                    <div className="bg-muted/30 border border-border rounded-lg p-6 space-y-6">
+                      {/* Name Section */}
+                      {/* Name Section */}
                       <div>
-                        <h1 className="text-2xl font-bold text-foreground mb-2">
-                          Analyzing Profile...
-                        </h1>
-                        <p className="text-muted-foreground">
-                          We&apos;re processing your information and building
-                          your personalized roadmap.
-                        </p>
-                      </div>
-                    </motion.div>
-                  ) : error ? (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="space-y-6"
-                    >
-                      <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto">
-                        <Check className="w-8 h-8 text-primary" />
-                      </div>
-                      <div>
-                        <h1 className="text-2xl font-bold text-foreground mb-2">
-                          Profile saved
-                        </h1>
-                        <p className="text-muted-foreground mb-6">
-                          We couldn&apos;t verify all details, but your profile
-                          has been saved. You can continue to the dashboard.
-                        </p>
-                        <div className="flex flex-col gap-3">
-                          <Link
-                            href="/dashboard"
-                            className="px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-md hover:bg-primary/90 transition-colors text-center"
-                          >
-                            Continue to Dashboard
-                          </Link>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                            Full Name
+                          </label>
                           <button
-                            onClick={handleSubmit}
-                            className="px-6 py-3 bg-muted text-muted-foreground font-medium rounded-md hover:bg-muted/80 transition-colors"
+                            onClick={() => nameInputRef.current?.focus()}
+                            className="text-muted-foreground hover:text-accent transition-colors"
                           >
-                            Try Verification Again
+                            <Edit2 className="w-4 h-4" />
                           </button>
                         </div>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="space-y-6"
-                    >
-                      <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto">
-                        <Check className="w-8 h-8 text-primary" />
-                      </div>
-                      <div>
-                        <h1 className="text-2xl font-bold text-foreground mb-2">
-                          Ready to analyze
-                        </h1>
-                        <p className="text-muted-foreground mb-6">
-                          Click below to submit your profile and get your
-                          personalized career roadmap.
+                        <input
+                          ref={nameInputRef}
+                          type="text"
+                          value={formData.name}
+                          onChange={(e) => updateFormData({ name: e.target.value })}
+                          placeholder="Your full name"
+                          className="w-full bg-transparent text-xl font-semibold text-foreground border-b border-dashed border-border focus:border-accent focus:outline-none py-1 transition-colors"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          * Extracted from {formData.socials.github ? "GitHub" : "Socials"}
                         </p>
-                        <button
-                          onClick={handleSubmit}
-                          className="px-8 py-3 bg-primary text-primary-foreground font-semibold rounded-md hover:bg-primary/90 transition-colors"
-                        >
-                          Analyze My Profile
-                        </button>
                       </div>
-                    </motion.div>
-                  )}
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
+
+                      <div className="h-px bg-border/50" />
+
+                      {/* Role / University */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                            {formData.persona === 'student' ? 'University' : 'Role'}
+                          </div>
+                          <div className="font-medium text-foreground">
+                            {formData.persona === 'student' ? formData.university : formData.role}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                            {formData.persona === 'student' ? 'Grad Year' : 'Experience'}
+                          </div>
+                          <div className="font-medium text-foreground">
+                            {formData.persona === 'student' ? formData.gradYear : `${formData.yearsOfExperience} Years`}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Skills Preview */}
+                      <div>
+                        <div className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                          Key Skills
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {formData.skills.slice(0, expandedSkills ? undefined : 5).map(skill => (
+                            <span key={skill} className="px-2 py-1 bg-background border border-border rounded-md text-xs font-medium text-foreground">
+                              {skill}
+                            </span>
+                          ))}
+                          {!expandedSkills && formData.skills.length > 5 && (
+                            <button
+                              onClick={() => setExpandedSkills(true)}
+                              className="px-2 py-1 text-xs text-accent hover:text-accent/80 transition-colors font-medium focus:outline-none"
+                            >
+                              +{formData.skills.length - 5} more
+                            </button>
+                          )}
+                          {expandedSkills && formData.skills.length > 5 && (
+                            <button
+                              onClick={() => setExpandedSkills(false)}
+                              className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                            >
+                              Show less
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+
+                      {/* Achievements Preview */}
+                      {formData.achievements && (
+                        <>
+                          <div className="h-px bg-border/50" />
+                          <div>
+                            <div className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                              Achievements
+                            </div>
+                            <div className="text-foreground whitespace-pre-wrap leading-relaxed">
+                              {formData.achievements}
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      <div className="bg-blue-50 border border-blue-200 rounded-md p-4 dark:bg-blue-900/10 dark:border-blue-800">
+                        <div className="flex gap-3">
+                          <div className="mt-0.5">
+                            <Github className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div className="text-sm">
+                            <p className="font-medium text-blue-800 dark:text-blue-100">GitHub-Centric Analysis</p>
+                            <p className="text-blue-700/80 dark:text-blue-200/70 mt-0.5 leading-relaxed">
+                              We primarily analyze your GitHub activity to generate your roadmap. LinkedIn provided is used for reference only.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Confirmation Button for Step 4 (Review) */}
+                    <div className="mt-8 flex justify-end">
+                      <button
+                        onClick={handleSubmit}
+                        disabled={isSubmitting}
+                        className="flex items-center gap-2 px-8 py-3 bg-primary text-primary-foreground font-semibold rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            Confirm & Go to Dashboard
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 6: Verification & Loading */}
+                {currentStep === 5 && (
+                  <div className="text-center py-12">
+                    {isSubmitting ? (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="space-y-6"
+                      >
+                        <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto">
+                          <Loader2 className="w-8 h-8 text-accent animate-spin" />
+                        </div>
+                        <div>
+                          <h1 className="text-2xl font-bold text-foreground mb-2">
+                            Analyzing Profile...
+                          </h1>
+                          <p className="text-muted-foreground">
+                            We&apos;re processing your information and building
+                            your personalized roadmap.
+                          </p>
+                        </div>
+                      </motion.div>
+                    ) : error ? (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="space-y-6"
+                      >
+                        <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto">
+                          <Check className="w-8 h-8 text-primary" />
+                        </div>
+                        <div>
+                          <h1 className="text-2xl font-bold text-foreground mb-2">
+                            Profile saved
+                          </h1>
+                          <p className="text-muted-foreground mb-6">
+                            We couldn&apos;t verify all details, but your profile
+                            has been saved. You can continue to the dashboard.
+                          </p>
+                          <div className="flex flex-col gap-3">
+                            <Link
+                              href="/dashboard"
+                              className="px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-md hover:bg-primary/90 transition-colors text-center"
+                            >
+                              Continue to Dashboard
+                            </Link>
+                            <button
+                              onClick={handleSubmit}
+                              className="px-6 py-3 bg-muted text-muted-foreground font-medium rounded-md hover:bg-muted/80 transition-colors"
+                            >
+                              Try Verification Again
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="space-y-6"
+                      >
+                        <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto">
+                          <Check className="w-8 h-8 text-primary" />
+                        </div>
+                        <div>
+                          <h1 className="text-2xl font-bold text-foreground mb-2">
+                            Ready to analyze
+                          </h1>
+                          <p className="text-muted-foreground mb-6">
+                            Click below to submit your profile and get your
+                            personalized career roadmap.
+                          </p>
+                          <button
+                            onClick={handleSubmit}
+                            className="px-8 py-3 bg-primary text-primary-foreground font-semibold rounded-md hover:bg-primary/90 transition-colors"
+                          >
+                            Analyze My Profile
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          )}
         </div>
-      </main>
+      </main >
 
       {/* Navigation Footer */}
-      {currentStep < 4 && (
-        <footer className="border-t border-border bg-card p-6">
-          <div className="max-w-xl mx-auto flex justify-between">
-            <button
-              onClick={prevStep}
-              disabled={currentStep === 0}
-              className="flex items-center gap-2 px-4 py-2 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back
-            </button>
-            <button
-              onClick={nextStep}
-              disabled={!canProceed()}
-              className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground font-semibold rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Continue
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-        </footer>
-      )}
-    </div>
+      {
+        currentStep < 4 && !isAnalyzing && (
+          <footer className="border-t border-border bg-card p-6">
+            <div className="max-w-xl mx-auto flex justify-between">
+              <button
+                onClick={prevStep}
+                disabled={currentStep === 0}
+                className="flex items-center gap-2 px-4 py-2 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+              <button
+                onClick={nextStep}
+                disabled={!canProceed()}
+                className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground font-semibold rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {currentStep === 3 ? "Next: Review" : "Continue"}
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </footer>
+        )
+      }
+    </div >
   );
 }

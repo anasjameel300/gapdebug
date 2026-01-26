@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   RefreshCw,
+  Check,
 } from "lucide-react";
 import { fetchUserProfile, type UserProfile } from "@/lib/api";
 
@@ -26,7 +27,7 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "home", label: "Home", icon: Home },
-  { id: "roadmap", label: "Roadmap", icon: Map },
+  //{ id: "roadmap", label: "Roadmap", icon: Map },
   { id: "resume", label: "Resume", icon: FileText },
   { id: "internships", label: "Internship Optimizer", icon: Building2 },
 ];
@@ -42,11 +43,15 @@ export default function DashboardPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await fetchUserProfile();
-      if (result.success && result.data) {
-        setProfile(result.data);
+      // LOCAL STORAGE LOAD (Prototype Mode)
+      // In real backend mode, we would call fetchUserProfile() which hits /api/profile
+      const savedProfile = localStorage.getItem("gapdebug_profile");
+
+      if (savedProfile) {
+        setProfile(JSON.parse(savedProfile));
       } else {
-        setError(result.error || "Failed to fetch profile");
+        // Fallback or redirect if no profile
+        setError("No profile found. Please complete onboarding.");
       }
     } catch (err) {
       setError(
@@ -108,8 +113,8 @@ export default function DashboardPage() {
                   setSidebarOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-md transition-colors text-left ${activeNav === item.id
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   }`}
               >
                 <item.icon className="w-5 h-5" />
@@ -184,13 +189,23 @@ export default function DashboardPage() {
                 Failed to fetch profile
               </h2>
               <p className="text-sm text-muted-foreground mb-6">{error}</p>
-              <button
-                onClick={loadProfile}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground font-medium rounded-md hover:bg-accent/90 transition-colors"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Try Again
-              </button>
+              {error?.includes("No profile found") ? (
+                <Link
+                  href="/onboarding"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-md hover:bg-primary/90 transition-colors"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Complete Onboarding
+                </Link>
+              ) : (
+                <button
+                  onClick={loadProfile}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground font-medium rounded-md hover:bg-accent/90 transition-colors"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Try Again
+                </button>
+              )}
             </motion.div>
           ) : (
             <motion.div
@@ -215,6 +230,68 @@ export default function DashboardPage() {
                     </p>
                   </div>
 
+                  {/* AI Analysis Result */}
+                  {profile?.analysis && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-card border border-border rounded-lg p-6"
+                    >
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-8 h-8 bg-primary/10 rounded-md flex items-center justify-center">
+                          <Sparkles className="w-4 h-4 text-primary" />
+                        </div>
+                        <h3 className="font-semibold text-card-foreground">AI Profile Analysis</h3>
+                      </div>
+
+                      <div className="mb-6 bg-muted/30 p-4 rounded-md border border-muted">
+                        <p className="text-sm text-foreground/80 leading-relaxed italic">
+                          &quot;{profile.analysis.summary}&quot;
+                        </p>
+                      </div>
+
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                            <Check className="w-3 h-3 text-green-500" />
+                            Verified Data
+                          </div>
+                          {profile.analysis.verification.verified.length > 0 ? (
+                            <ul className="space-y-2">
+                              {profile.analysis.verification.verified.map((item, i) => (
+                                <li key={i} className="text-sm text-foreground flex items-center gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-muted-foreground italic">No data verified yet</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                            <AlertCircle className="w-3 h-3 text-amber-500" />
+                            Requires Verification
+                          </div>
+                          {profile.analysis.verification.unverified.length > 0 ? (
+                            <ul className="space-y-2">
+                              {profile.analysis.verification.unverified.map((item, i) => (
+                                <li key={i} className="text-sm text-muted-foreground flex items-center gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500/50" />
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-muted-foreground italic">All data verified</p>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
                   {/* Quick Stats */}
                   <div className="grid sm:grid-cols-3 gap-4">
                     {[
@@ -228,11 +305,11 @@ export default function DashboardPage() {
                         value: "78%",
                         color: "bg-accent",
                       },
-                      {
+                      /*{
                         label: "Roadmap Progress",
                         value: "0%",
                         color: "bg-[#D00000]",
-                      },
+                      },*/
                     ].map((stat) => (
                       <div
                         key={stat.label}
@@ -258,11 +335,11 @@ export default function DashboardPage() {
                     </h3>
                     <div className="grid sm:grid-cols-2 gap-3">
                       {[
-                        {
+                        /*{
                           label: "View Roadmap",
                           description: "See your personalized learning path",
                           action: () => setActiveNav("roadmap"),
-                        },
+                        },*/
                         {
                           label: "Optimize Resume",
                           description: "Enhance your resume with AI",
@@ -291,15 +368,72 @@ export default function DashboardPage() {
               )}
 
               {activeNav === "roadmap" && (
-                <div className="bg-card border border-border rounded-lg p-8 text-center">
-                  <Map className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <h2 className="text-lg font-semibold text-card-foreground mb-2">
-                    Roadmap Coming Soon
-                  </h2>
-                  <p className="text-muted-foreground max-w-sm mx-auto">
-                    Your personalized learning roadmap will appear here once
-                    your profile is fully analyzed.
-                  </p>
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-foreground">
+                        Your Learning Roadmap
+                      </h2>
+                      <p className="text-muted-foreground">
+                        AI-generated curriculum based on your goal:{" "}
+                        <span className="font-medium text-foreground">
+                          {profile?.role || "Software Engineer"}
+                        </span>
+                      </p>
+                    </div>
+                    <button className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md text-sm font-medium hover:bg-secondary/80 transition-colors">
+                      Regenerate
+                    </button>
+                  </div>
+
+                  <div className="grid gap-4">
+                    {profile?.roadmap?.map((item, index) => (
+                      <div
+                        key={item.id}
+                        className="bg-card border border-border rounded-lg p-5 flex gap-4 hover:border-accent/50 transition-colors group"
+                      >
+                        <div className="flex-shrink-0 mt-1">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${item.status === 'completed' ? 'bg-green-500/10 text-green-500' :
+                            item.status === 'in_progress' ? 'bg-accent/10 text-accent' :
+                              'bg-muted text-muted-foreground'
+                            }`}>
+                            {item.status === 'completed' ? <Check className="w-4 h-4" /> : index + 1}
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-4 mb-2">
+                            <h3 className="font-semibold text-lg text-foreground group-hover:text-accent transition-colors">
+                              {item.title}
+                            </h3>
+                            <span className="text-xs font-medium px-2 py-1 bg-secondary text-secondary-foreground rounded-full whitespace-nowrap">
+                              {item.duration}
+                            </span>
+                          </div>
+                          <p className="text-muted-foreground mb-4 text-sm leading-relaxed">
+                            {item.description}
+                          </p>
+
+                          {/* Resources / Actions */}
+                          <div className="flex flex-wrap gap-2">
+                            {item.resources.map((resource, i) => (
+                              <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 bg-muted/50 border border-muted rounded-md text-xs font-medium text-muted-foreground hover:bg-muted transition-colors cursor-pointer">
+                                <FileText className="w-3 h-3" />
+                                {resource}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )) || (
+                        <div className="text-center py-12 bg-muted/30 rounded-lg border border-dashed border-border">
+                          <Map className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="font-semibold text-foreground">No roadmap generated yet</h3>
+                          <p className="text-muted-foreground text-sm mt-1">
+                            Complete onboarding to generate your personalized path.
+                          </p>
+                        </div>
+                      )}
+                  </div>
                 </div>
               )}
 
