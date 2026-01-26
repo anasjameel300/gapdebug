@@ -36,14 +36,6 @@ export interface UserProfile {
   };
 }
 
-export interface RoadmapItem {
-  id: string;
-  title: string;
-  description: string;
-  duration: string;
-  resources: string[];
-  status: 'pending' | 'in_progress' | 'completed';
-}
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -105,20 +97,7 @@ export async function submitOnboardingData(data: UserProfile): Promise<ApiRespon
   };
 }
 
-export async function fetchRoadmap(goal: string): Promise<ApiResponse<{ roadmap: RoadmapItem[] }>> {
-  const response = await fetch(`${API_BASE_URL}/generate-pathway?goal=${encodeURIComponent(goal)}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch roadmap: ${response.statusText}`);
-  }
-
-  return response.json();
-}
 
 export async function fetchUserProfile(): Promise<ApiResponse<UserProfile>> {
   const response = await fetch(`${API_BASE_URL}/profile`, {

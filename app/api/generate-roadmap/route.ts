@@ -2,37 +2,37 @@ import { NextRequest, NextResponse } from "next/server";
 import { queryOpenRouter } from "@/lib/ai-client";
 
 // Using The Professor model for reliable analysis
-const MODEL_PROFILER = process.env.MODEL_PROFESSOR || "openai/gpt-oss-120b:free";
+const MODEL_PROFESSOR = process.env.MODEL_PROFESSOR || "openai/gpt-oss-120b:free";
 
 export async function POST(req: NextRequest) {
-    try {
-        const { profile, goal } = await req.json();
+  try {
+    const { profile, goal } = await req.json();
 
-        if (!profile || !goal) {
-            return NextResponse.json({ success: false, error: "Missing profile or goal data" }, { status: 400 });
-        }
+    if (!profile || !goal) {
+      return NextResponse.json({ success: false, error: "Missing profile or goal data" }, { status: 400 });
+    }
 
-        const systemPrompt = `
-      You are an expert Career Coach and Technical Mentor. Your goal is to analyze a user's current skills and experience against their target career goal to generate a personalized learning roadmap.
+    const systemPrompt = `
+      You are an expert Career Coach. Analyze the user's skills and experience against their target goal to generate a personalized learning roadmap.
 
       Return ONLY a valid JSON object with the following structure:
       {
-        "skillGaps": ["string (List of specific technical skills the user is missing for this role)"],
-        "recommendedSkills": ["string (List of high-value skills that would distinguish them)"],
+        "skillGaps": ["string (Specific technical skills missing)"],
+        "recommendedSkills": ["string (High-value skills to distinguish them)"],
         "roadmap": [
           {
-            "id": "item-1",
-            "title": "string (Phase Title, e.g., 'Foundation: Advanced React Patterns')",
-            "description": "string (Actionable advice on what to learn and why)",
-            "duration": "string (Estimated time, e.g., '2 weeks')",
+            "id": "week-1",
+            "title": "string (Phase Title)",
+            "description": "string (Actionable advice: what to learn and why)",
+            "duration": "string (Estimated time)",
             "status": "pending",
-            "resources": ["string (Keywords for resources, e.g., 'React Docs', 'Epic React')"]
+            "resources": ["string (Search terms for resources)"]
           }
         ]
       }
     `;
 
-        const userPrompt = `
+    const userPrompt = `
       Create a roadmap for this candidate:
       Current Profile:
       - Role/Persona: ${profile.persona === 'student' ? profile.university + ' Student' : profile.role}
@@ -46,18 +46,18 @@ export async function POST(req: NextRequest) {
       Keep it realistic and actionable.
     `;
 
-        const aiResponse = await queryOpenRouter(MODEL_PROFILER, systemPrompt, userPrompt, true);
+    const aiResponse = await queryOpenRouter(MODEL_PROFESSOR, systemPrompt, userPrompt, true);
 
-        return NextResponse.json({
-            success: true,
-            data: aiResponse
-        });
+    return NextResponse.json({
+      success: true,
+      data: aiResponse
+    });
 
-    } catch (error) {
-        console.error("Roadmap Generation Error:", error);
-        return NextResponse.json(
-            { success: false, error: error instanceof Error ? error.message : "Failed to generate roadmap" },
-            { status: 500 }
-        );
-    }
+  } catch (error) {
+    console.error("Roadmap Generation Error:", error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "Failed to generate roadmap" },
+      { status: 500 }
+    );
+  }
 }

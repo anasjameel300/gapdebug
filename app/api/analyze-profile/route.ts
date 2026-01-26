@@ -14,19 +14,19 @@ export async function POST(req: NextRequest) {
 
         // 1. The Profiler's Job: Identity Inference & Professional Summary
         const systemPrompt = `
-      You are an expert Career Profiler. Your goal is to analyze a user's raw profile data to infer their real identity, clean up their achievements, and generate a professional summary.
+      You are an expert Career Profiler. Analyze the user's raw profile data to infer their real identity, clean up their achievements, and generate a professional summary.
       
       Return ONLY a valid JSON object with the following structure:
       {
-        "name": "string (inferred Real Name)",
-        "university": "string (Corrected spelling, capitalization, and formatting e.g. 'Centurion University, Odisha')",
+        "name": "string (Inferred Real Name)",
+        "university": "string (Corrected spelling/formatting)",
         "role": "string (Corrected title)",
-        "achievements": "string (cleaned up, bulleted list of key achievements)",
+        "achievements": "string (Cleaned up, bulleted list)",
         "analysis": {
-            "summary": "string (2-3 sentences professional summary of the candidate)",
+            "summary": "string (2-3 sentences professional summary)",
             "verification": {
                 "verified": ["string (e.g., 'GitHub Activity', 'Valid LinkedIn URL')"],
-                "unverified": ["string (e.g., 'University Transcript', 'Work Experience')"]
+                "unverified": ["string (e.g., 'University Transcript')"]
             }
         }
       }

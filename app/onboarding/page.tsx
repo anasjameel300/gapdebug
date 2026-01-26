@@ -819,7 +819,6 @@ export default function OnboardingPage() {
 
                     <div className="bg-muted/30 border border-border rounded-lg p-6 space-y-6">
                       {/* Name Section */}
-                      {/* Name Section */}
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <label className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
