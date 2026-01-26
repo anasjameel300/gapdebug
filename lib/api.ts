@@ -1,3 +1,4 @@
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export interface UserProfile {
@@ -15,7 +16,17 @@ export interface UserProfile {
   };
   achievements?: string;
   resumeUrl?: string;
-  roadmap?: RoadmapItem[];
+  // Roadmap Data
+  roadmap?: {
+    id?: string;
+    title: string;
+    description: string;
+    duration: string;
+    status: "pending" | "in_progress" | "completed";
+    resources: string[];
+  }[];
+  skillGaps?: string[];
+  recommendedSkills?: string[];
   analysis?: {
     summary: string;
     verification: {
@@ -50,7 +61,7 @@ export async function uploadResume(file: File): Promise<ApiResponse<{ url: strin
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to upload resume: ${response.statusText}`);
+    throw new Error(`Failed to upload resume: ${response.statusText} `);
   }
 
   return response.json();
@@ -69,7 +80,7 @@ export async function analyzeProfile(data: UserProfile): Promise<ApiResponse<Par
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to analyze profile: ${response.statusText}`);
+    throw new Error(`Failed to analyze profile: ${response.statusText} `);
   }
 
   const result = await response.json();

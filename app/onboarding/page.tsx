@@ -310,9 +310,6 @@ export default function OnboardingPage() {
       <header className="border-b border-border bg-card">
         <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-secondary rounded-md flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-primary" />
-            </div>
             <span className="font-semibold text-lg text-foreground">
               GapDebug
             </span>
