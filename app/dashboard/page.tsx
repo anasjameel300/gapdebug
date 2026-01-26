@@ -16,8 +16,10 @@ import {
   X,
   RefreshCw,
   Check,
+  Zap,
+  Target,
 } from "lucide-react";
-import { fetchUserProfile, type UserProfile } from "@/lib/api";
+import { type UserProfile } from "@/lib/api";
 
 type NavItem = {
   id: string;
@@ -25,9 +27,10 @@ type NavItem = {
   icon: typeof Home;
 };
 
+// Update Nav Items
 const NAV_ITEMS: NavItem[] = [
   { id: "home", label: "Home", icon: Home },
-  //{ id: "roadmap", label: "Roadmap", icon: Map },
+  { id: "roadmap", label: "Roadmap", icon: Map },
   { id: "resume", label: "Resume", icon: FileText },
   { id: "internships", label: "Internship Optimizer", icon: Building2 },
 ];
@@ -39,18 +42,19 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
 
+  // New State for Roadmap
+  const [generatingRoadmap, setGeneratingRoadmap] = useState(false);
+  const [roadmapGoal, setRoadmapGoal] = useState("");
+
   const loadProfile = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      // LOCAL STORAGE LOAD (Prototype Mode)
-      // In real backend mode, we would call fetchUserProfile() which hits /api/profile
       const savedProfile = localStorage.getItem("gapdebug_profile");
 
       if (savedProfile) {
         setProfile(JSON.parse(savedProfile));
       } else {
-        // Fallback or redirect if no profile
         setError("No profile found. Please complete onboarding.");
       }
     } catch (err) {
@@ -65,6 +69,38 @@ export default function DashboardPage() {
   useEffect(() => {
     loadProfile();
   }, []);
+
+  const generateRoadmap = async () => {
+    if (!profile || !roadmapGoal.trim()) return;
+
+    setGeneratingRoadmap(true);
+    try {
+      const res = await fetch("/api/generate-roadmap", {
+        method: "POST",
+        body: JSON.stringify({ profile, goal: roadmapGoal }),
+      });
+      const data = await res.json();
+
+      if (data.success && data.data) {
+        // Update local profile with new roadmap data
+        const roadmapData = data.data;
+        const updatedProfile = {
+          ...profile,
+          roadmap: roadmapData.roadmap,
+          skillGaps: roadmapData.skillGaps,
+          recommendedSkills: roadmapData.recommendedSkills
+        };
+
+        // Save to local storage
+        localStorage.setItem("gapdebug_profile", JSON.stringify(updatedProfile));
+        setProfile(updatedProfile);
+      }
+    } catch (error) {
+      console.error("Failed to generate roadmap", error);
+    } finally {
+      setGeneratingRoadmap(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -90,9 +126,6 @@ export default function DashboardPage() {
           {/* Logo */}
           <div className="h-16 flex items-center justify-between px-6 border-b border-sidebar-border">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-sidebar-primary rounded-md flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-sidebar-primary-foreground" />
-              </div>
               <span className="font-semibold">GapDebug</span>
             </Link>
             <button
@@ -305,12 +338,12 @@ export default function DashboardPage() {
                         value: "78%",
                         color: "bg-accent",
                       },
-                      /*{
-                        label: "Roadmap Progress",
-                        value: "0%",
-                        color: "bg-[#D00000]",
-                      },*/
-                    ].map((stat) => (
+                      {
+                        label: "Roadmap Status",
+                        value: profile?.roadmap ? "Active" : "Not Started",
+                        color: "bg-[#22c55e]",
+                      },
+                    ].map((stat: { label: string; value: string | number; color: string }) => (
                       <div
                         key={stat.label}
                         className="bg-card border border-border rounded-lg p-5"
@@ -335,17 +368,17 @@ export default function DashboardPage() {
                     </h3>
                     <div className="grid sm:grid-cols-2 gap-3">
                       {[
-                        /*{
+                        {
                           label: "View Roadmap",
                           description: "See your personalized learning path",
                           action: () => setActiveNav("roadmap"),
-                        },*/
+                        },
                         {
                           label: "Optimize Resume",
                           description: "Enhance your resume with AI",
                           action: () => setActiveNav("resume"),
                         },
-                      ].map((item) => (
+                      ].map((item: { label: string; description: string; action: () => void }) => (
                         <button
                           key={item.label}
                           onClick={item.action}
@@ -369,71 +402,138 @@ export default function DashboardPage() {
 
               {activeNav === "roadmap" && (
                 <div className="space-y-6">
+                  {/* Header */}
                   <div className="flex items-center justify-between">
                     <div>
                       <h2 className="text-2xl font-bold text-foreground">
                         Your Learning Roadmap
                       </h2>
                       <p className="text-muted-foreground">
-                        AI-generated curriculum based on your goal:{" "}
-                        <span className="font-medium text-foreground">
-                          {profile?.role || "Software Engineer"}
-                        </span>
+                        {profile?.roadmap
+                          ? "Follow your personalized path to success."
+                          : "Define your goal to get started."}
                       </p>
                     </div>
-                    <button className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md text-sm font-medium hover:bg-secondary/80 transition-colors">
-                      Regenerate
-                    </button>
                   </div>
 
-                  <div className="grid gap-4">
-                    {profile?.roadmap?.map((item, index) => (
-                      <div
-                        key={item.id}
-                        className="bg-card border border-border rounded-lg p-5 flex gap-4 hover:border-accent/50 transition-colors group"
-                      >
-                        <div className="flex-shrink-0 mt-1">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${item.status === 'completed' ? 'bg-green-500/10 text-green-500' :
-                            item.status === 'in_progress' ? 'bg-accent/10 text-accent' :
-                              'bg-muted text-muted-foreground'
-                            }`}>
-                            {item.status === 'completed' ? <Check className="w-4 h-4" /> : index + 1}
+                  {/* Input OR Roadmap */}
+                  {!profile?.roadmap ? (
+                    <div className="bg-card border border-border rounded-lg p-8 max-w-xl mx-auto text-center">
+                      <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Target className="w-8 h-8 text-accent" />
+                      </div>
+                      <h3 className="text-xl font-bold text-foreground mb-2">What do you want to become?</h3>
+                      <p className="text-muted-foreground mb-8">Enter your dream role (e.g. "Senior Frontend Engineer", "AI Researcher") and we'll map out how to get there.</p>
+
+                      <div className="flex flex-col gap-4">
+                        <input
+                          type="text"
+                          placeholder="e.g. Senior Full Stack Developer"
+                          value={roadmapGoal}
+                          onChange={(e) => setRoadmapGoal(e.target.value)}
+                          className="w-full px-4 py-3 bg-background border border-input rounded-md focus:ring-2 focus:ring-accent focus:outline-none"
+                        />
+                        <button
+                          onClick={generateRoadmap}
+                          disabled={generatingRoadmap || !roadmapGoal.trim()}
+                          className="w-full px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {generatingRoadmap ? (
+                            <>
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              Generating your path...
+                            </>
+                          ) : (
+                            <>
+                              Generate Roadmap
+                              <Sparkles className="w-5 h-5" />
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Skill Gaps & Recommendations */}
+                      <div className="grid md:grid-cols-2 gap-6">
+                        {/* Gaps */}
+                        <div className="bg-card border border-border rounded-lg p-6">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-destructive/10 rounded-md">
+                              <Zap className="w-5 h-5 text-destructive" />
+                            </div>
+                            <h3 className="font-semibold text-lg">Skill Gaps</h3>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {profile.skillGaps?.map((skill: string, i: number) => (
+                              <span key={i} className="px-3 py-1 bg-destructive/10 text-destructive text-sm font-medium rounded-full border border-destructive/20">
+                                {skill}
+                              </span>
+                            ))}
                           </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-4 mb-2">
-                            <h3 className="font-semibold text-lg text-foreground group-hover:text-accent transition-colors">
-                              {item.title}
-                            </h3>
-                            <span className="text-xs font-medium px-2 py-1 bg-secondary text-secondary-foreground rounded-full whitespace-nowrap">
-                              {item.duration}
-                            </span>
-                          </div>
-                          <p className="text-muted-foreground mb-4 text-sm leading-relaxed">
-                            {item.description}
-                          </p>
 
-                          {/* Resources / Actions */}
+                        {/* Recommended */}
+                        <div className="bg-card border border-border rounded-lg p-6">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-accent/10 rounded-md">
+                              <Sparkles className="w-5 h-5 text-accent" />
+                            </div>
+                            <h3 className="font-semibold text-lg">Recommended</h3>
+                          </div>
                           <div className="flex flex-wrap gap-2">
-                            {item.resources.map((resource, i) => (
-                              <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 bg-muted/50 border border-muted rounded-md text-xs font-medium text-muted-foreground hover:bg-muted transition-colors cursor-pointer">
-                                <FileText className="w-3 h-3" />
-                                {resource}
+                            {profile.recommendedSkills?.map((skill: string, i: number) => (
+                              <span key={i} className="px-3 py-1 bg-accent/10 text-accent text-sm font-medium rounded-full border border-accent/20">
+                                {skill}
                               </span>
                             ))}
                           </div>
                         </div>
                       </div>
-                    )) || (
-                        <div className="text-center py-12 bg-muted/30 rounded-lg border border-dashed border-border">
-                          <Map className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                          <h3 className="font-semibold text-foreground">No roadmap generated yet</h3>
-                          <p className="text-muted-foreground text-sm mt-1">
-                            Complete onboarding to generate your personalized path.
-                          </p>
-                        </div>
-                      )}
-                  </div>
+
+                      {/* Timeline */}
+                      <div className="grid gap-4">
+                        {profile.roadmap.map((item: { status: string; id?: string; title: string; description: string; duration: string; resources: string[] }, index: number) => (
+                          <div
+                            key={index} // Using index as key if ID is missing or duplicate
+                            className="bg-card border border-border rounded-lg p-5 flex gap-4 hover:border-accent/50 transition-colors group"
+                          >
+                            <div className="flex-shrink-0 mt-1">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${item.status === 'completed' ? 'bg-green-500/10 text-green-500' :
+                                item.status === 'in_progress' ? 'bg-accent/10 text-accent' :
+                                  'bg-muted text-muted-foreground'
+                                }`}>
+                                {item.status === 'completed' ? <Check className="w-4 h-4" /> : index + 1}
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-4 mb-2">
+                                <h3 className="font-semibold text-lg text-foreground group-hover:text-accent transition-colors">
+                                  {item.title}
+                                </h3>
+                                <span className="text-xs font-medium px-2 py-1 bg-secondary text-secondary-foreground rounded-full whitespace-nowrap">
+                                  {item.duration}
+                                </span>
+                              </div>
+                              <p className="text-muted-foreground mb-4 text-sm leading-relaxed">
+                                {item.description}
+                              </p>
+
+                              {/* Resources / Actions */}
+                              <div className="flex flex-wrap gap-2">
+                                {item.resources.map((resource: string, i: number) => (
+                                  <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 bg-muted/50 border border-muted rounded-md text-xs font-medium text-muted-foreground hover:bg-muted transition-colors cursor-pointer">
+                                    <FileText className="w-3 h-3" />
+                                    {resource}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
