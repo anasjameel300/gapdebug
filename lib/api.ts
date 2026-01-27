@@ -34,6 +34,11 @@ export interface UserProfile {
       unverified: string[];
     };
   };
+  clarificationQuestions?: {
+    id: string;
+    question: string;
+    context: string;
+  }[];
 }
 
 

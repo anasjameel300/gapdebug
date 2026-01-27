@@ -30,6 +30,19 @@ export async function POST(req: NextRequest) {
             }
         }
       }
+      
+      If specific achievements are vague (e.g., "Participated in hackathons" without naming them, or "Built full stack app" without details), you MAY ask clarifying questions. 
+      Only ask questions if the answer would significantly improve the resume quality (by >50%). Limit to maximum 3 questions.
+      
+      Add this to the JSON response:
+      "clarificationQuestions": [
+        {
+          "id": "string",
+          "question": "string (Targeted question)",
+          "context": "string (The vague claim causing the question)"
+        }
+      ] (Optional, array of objects)
+      }
     `;
 
         const userPrompt = `

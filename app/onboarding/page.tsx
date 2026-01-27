@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { submitOnboardingData, uploadResume, analyzeProfile, type UserProfile } from "@/lib/api";
 import Link from "next/link";
+import { ProgressiveLoader } from "./components/ProgressiveLoader";
 
 const STEPS = ["Persona", "Skills", "Socials", "Achievements", "Review", "Verification"];
 
@@ -142,6 +143,7 @@ export default function OnboardingPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [expandedSkills, setExpandedSkills] = useState(false);
+  const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, string>>({});
 
   const updateFormData = useCallback(
     (updates: Partial<UserProfile>) => {
@@ -149,6 +151,26 @@ export default function OnboardingPage() {
     },
     []
   );
+
+  const handleApplyClarifications = useCallback(() => {
+    let newAchievements = formData.achievements || "";
+    // Only append if we have answers
+    if (Object.keys(clarificationAnswers).length > 0) {
+      newAchievements += "\n\nAdditional Context:";
+      Object.entries(clarificationAnswers).forEach(([id, answer]) => {
+        const q = formData.clarificationQuestions?.find(q => q.id === id);
+        if (q && answer.trim()) {
+          newAchievements += `\n• ${q.context} -> ${answer.trim()}`;
+        }
+      });
+
+      updateFormData({
+        achievements: newAchievements,
+        clarificationQuestions: [] // Clear questions as they are resolved
+      });
+      setClarificationAnswers({});
+    }
+  }, [clarificationAnswers, formData.achievements, formData.clarificationQuestions, updateFormData]);
 
   const addSkill = useCallback(() => {
     const trimmed = skillInput.trim();
@@ -344,22 +366,7 @@ export default function OnboardingPage() {
       <main className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-xl">
           {isAnalyzing ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="text-center py-20"
-            >
-              <div className="w-20 h-20 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Loader2 className="w-10 h-10 text-accent animate-spin" />
-              </div>
-              <h2 className="text-2xl font-bold text-foreground mb-2">
-                Analyzing Profile...
-              </h2>
-              <p className="text-muted-foreground max-w-sm mx-auto">
-                Our AI is reading your resume, socials, and achievements to build your professional profile.
-              </p>
-            </motion.div>
+            <ProgressiveLoader />
           ) : (
             <AnimatePresence mode="wait" custom={1}>
               <motion.div
@@ -926,6 +933,56 @@ export default function OnboardingPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Clarification Questions */}
+                    {formData.clarificationQuestions && formData.clarificationQuestions.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-accent/5 border border-accent/20 rounded-lg p-6 space-y-4"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 bg-accent/10 rounded-md">
+                            <Sparkles className="w-5 h-5 text-accent" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-foreground">Refine your profile</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Our AI has a few follow-up questions to making your profile stand out more.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4 mt-4">
+                          {formData.clarificationQuestions.map((q) => (
+                            <div key={q.id} className="space-y-2">
+                              <label className="block text-sm font-medium text-foreground">
+                                {q.question}
+                              </label>
+                              <p className="text-xs text-muted-foreground italic">
+                                Regarding: "{q.context}"
+                              </p>
+                              <textarea
+                                value={clarificationAnswers[q.id] || ""}
+                                onChange={(e) => setClarificationAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                                placeholder="Provide more details..."
+                                className="w-full px-4 py-2 bg-card border border-input rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                                rows={2}
+                              />
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="flex justify-end">
+                          <button
+                            onClick={handleApplyClarifications}
+                            className="px-4 py-2 bg-accent text-accent-foreground text-sm font-medium rounded-md hover:bg-accent/90 transition-colors"
+                          >
+                            Add Support Details
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
 
                     {/* Confirmation Button for Step 4 (Review) */}
                     <div className="mt-8 flex justify-end">
