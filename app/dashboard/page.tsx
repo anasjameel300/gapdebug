@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import { ProgressiveLoader } from "@/app/onboarding/components/ProgressiveLoader";
 import { type UserProfile } from "@/lib/api";
+import { LiveContext } from "./components/LiveContext";
+import { useContextStore } from "@/lib/stores/context-store";
 
 type NavItem = {
   id: string;
@@ -67,7 +69,22 @@ export default function DashboardPage() {
       const savedProfile = localStorage.getItem("gapdebug_profile");
 
       if (savedProfile) {
-        setProfile(JSON.parse(savedProfile));
+        const parsedProfile = JSON.parse(savedProfile);
+        setProfile(parsedProfile);
+
+        // Hydrate Live Context Store if empty
+        const store = useContextStore.getState();
+        if (store.skills.length === 0 && parsedProfile.skills && parsedProfile.skills.length > 0) {
+          parsedProfile.skills.forEach((skillName: string) => {
+            store.addSkill({
+              name: skillName,
+              category: "other", // Default since onboarding doesn't save category mapping
+              confidence: 80,
+              verified: true,
+              isGhost: false,
+            });
+          });
+        }
       } else {
         setError("No profile found. Please complete onboarding.");
       }
@@ -343,40 +360,9 @@ export default function DashboardPage() {
                     </motion.div>
                   )}
 
-                  {/* Quick Stats */}
-                  <div className="grid sm:grid-cols-3 gap-4">
-                    {[
-                      {
-                        label: "Skills Tracked",
-                        value: profile?.skills?.length || 0,
-                        color: "bg-primary",
-                      },
-                      {
-                        label: "Profile Completion",
-                        value: "78%",
-                        color: "bg-accent",
-                      },
-                      {
-                        label: "Roadmap Status",
-                        value: profile?.roadmap ? "Active" : "Not Started",
-                        color: "bg-[#22c55e]",
-                      },
-                    ].map((stat: { label: string; value: string | number; color: string }) => (
-                      <div
-                        key={stat.label}
-                        className="bg-card border border-border rounded-lg p-5"
-                      >
-                        <div className="text-sm text-muted-foreground mb-1">
-                          {stat.label}
-                        </div>
-                        <div className="text-2xl font-bold text-card-foreground">
-                          {stat.value}
-                        </div>
-                        <div
-                          className={`h-1 ${stat.color} rounded-full mt-3 w-1/2`}
-                        />
-                      </div>
-                    ))}
+                  {/* Live Context Dashboard */}
+                  <div className="mb-8">
+                    <LiveContext />
                   </div>
 
                   {/* Quick Actions */}
