@@ -16,6 +16,8 @@ export interface UserProfile {
   };
   achievements?: string;
   resumeUrl?: string;
+  targetRole?: string;
+  suggestedRoles?: string[];
   // Roadmap Data
   roadmap?: {
     id?: string;

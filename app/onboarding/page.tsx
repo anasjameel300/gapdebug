@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
@@ -19,6 +19,8 @@ import {
   Check,
   Sparkles,
   Edit2,
+  Target,
+  CheckCircle2,
 } from "lucide-react";
 import { submitOnboardingData, uploadResume, analyzeProfile, type UserProfile } from "@/lib/api";
 import Link from "next/link";
@@ -142,6 +144,8 @@ export default function OnboardingPage() {
 
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [customRole, setCustomRole] = useState("");
+  const [isCustomRole, setIsCustomRole] = useState(false);
   const [expandedSkills, setExpandedSkills] = useState(false);
   const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, string>>({});
 
@@ -244,8 +248,18 @@ export default function OnboardingPage() {
       } else {
         setCurrentStep((prev) => prev + 1);
       }
+    } else {
+      setCurrentStep((prev) => prev + 1);
     }
+
   }, [currentStep, formData, updateFormData]);
+
+  // Pre-select first suggested role
+  useEffect(() => {
+    if (currentStep === 4 && formData.suggestedRoles?.length && !formData.targetRole) {
+      updateFormData({ targetRole: formData.suggestedRoles[0] });
+    }
+  }, [currentStep, formData.suggestedRoles, formData.targetRole, updateFormData]);
 
   const prevStep = useCallback(() => {
     if (currentStep > 0) {
@@ -931,6 +945,70 @@ export default function OnboardingPage() {
                             </p>
                           </div>
                         </div>
+                      </div>
+                    </div>
+
+
+                    {/* Roadmap Suggestion Section */}
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                        <Target className="w-5 h-5 text-accent" />
+                        Suggested Career Path
+                      </h2>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Based on your skills, we recommend these paths. This will shape your learning roadmap.
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {formData.suggestedRoles?.map((role) => (
+                          <button
+                            key={role}
+                            onClick={() => {
+                              updateFormData({ targetRole: role });
+                              setIsCustomRole(false);
+                            }}
+                            className={`p-4 rounded-lg border-2 text-left transition-all relative ${formData.targetRole === role && !isCustomRole
+                              ? "border-accent bg-accent/5 shadow-sm"
+                              : "border-border hover:border-accent/50"
+                              }`}
+                          >
+                            <div className="font-medium text-foreground">{role}</div>
+                            {formData.targetRole === role && !isCustomRole && (
+                              <div className="absolute top-3 right-3 text-accent">
+                                <CheckCircle2 className="w-5 h-5" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+
+                        {/* Custom Role Option */}
+                        <button
+                          onClick={() => {
+                            setIsCustomRole(true);
+                            updateFormData({ targetRole: customRole });
+                          }}
+                          className={`p-4 rounded-lg border-2 text-left transition-all ${isCustomRole
+                            ? "border-accent bg-accent/5"
+                            : "border-border hover:border-accent/50"
+                            }`}
+                        >
+                          <div className="font-medium text-foreground mb-2">Other Path</div>
+                          {isCustomRole ? (
+                            <input
+                              type="text"
+                              value={customRole}
+                              onChange={(e) => {
+                                setCustomRole(e.target.value);
+                                updateFormData({ targetRole: e.target.value });
+                              }}
+                              placeholder="e.g. DevOps Engineer"
+                              className="w-full px-3 py-1.5 bg-background border border-input rounded text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                              autoFocus
+                            />
+                          ) : (
+                            <p className="text-xs text-muted-foreground">Type your own goal...</p>
+                          )}
+                        </button>
                       </div>
                     </div>
 

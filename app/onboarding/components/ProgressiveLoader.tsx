@@ -2,9 +2,14 @@
 
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { Loader2, Sparkles, CheckCircle2, Search, Brain, FileText } from "lucide-react";
+import { Loader2, Sparkles, CheckCircle2, Search, Brain, FileText, type LucideIcon } from "lucide-react";
 
-const LOADING_STEPS = [
+export interface LoadingStep {
+    text: string;
+    icon: LucideIcon;
+}
+
+const DEFAULT_STEPS: LoadingStep[] = [
     { text: "Connecting to knowledge base...", icon: Search },
     { text: "Analyzing your skills & experience...", icon: Brain },
     { text: "Structuring your achievements...", icon: FileText },
@@ -12,20 +17,24 @@ const LOADING_STEPS = [
     { text: "Finalizing your professional profile...", icon: Sparkles },
 ];
 
-export function ProgressiveLoader() {
+interface ProgressiveLoaderProps {
+    steps?: LoadingStep[];
+}
+
+export function ProgressiveLoader({ steps = DEFAULT_STEPS }: ProgressiveLoaderProps) {
     const [currentStep, setCurrentStep] = useState(0);
 
     useEffect(() => {
         // Total duration around 15 seconds to match the 13-25s expected wait
         // We'll advance steps every ~3 seconds
         const interval = setInterval(() => {
-            setCurrentStep((prev) => (prev < LOADING_STEPS.length - 1 ? prev + 1 : prev));
+            setCurrentStep((prev) => (prev < steps.length - 1 ? prev + 1 : prev));
         }, 3000);
 
         return () => clearInterval(interval);
-    }, []);
+    }, [steps.length]);
 
-    const ActiveIcon = LOADING_STEPS[currentStep].icon;
+    const ActiveIcon = steps[currentStep].icon;
 
     return (
         <div className="text-center py-20 max-w-md mx-auto">
@@ -45,17 +54,17 @@ export function ProgressiveLoader() {
 
             {/* Main Status Text */}
             <motion.h2
-                key={LOADING_STEPS[currentStep].text}
+                key={steps[currentStep].text}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="text-2xl font-bold text-foreground mb-6 h-8"
             >
-                {LOADING_STEPS[currentStep].text}
+                {steps[currentStep].text}
             </motion.h2>
 
             {/* Step Indicators */}
             <div className="space-y-3 max-w-xs mx-auto">
-                {LOADING_STEPS.map((step, index) => {
+                {steps.map((step, index) => {
                     const StepIcon = step.icon;
                     const isActive = index === currentStep;
                     const isCompleted = index < currentStep;
@@ -64,7 +73,7 @@ export function ProgressiveLoader() {
                         <div
                             key={index}
                             className={`flex items-center gap-3 text-sm transition-colors duration-300 ${isActive ? "text-foreground font-medium" :
-                                    isCompleted ? "text-muted-foreground" : "text-muted-foreground/30"
+                                isCompleted ? "text-muted-foreground" : "text-muted-foreground/30"
                                 }`}
                         >
                             <div className={`

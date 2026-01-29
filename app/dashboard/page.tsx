@@ -17,8 +17,13 @@ import {
   RefreshCw,
   Check,
   Zap,
+  Search,
+  BookOpen,
+  User,
   Target,
+  CheckCircle2,
 } from "lucide-react";
+import { ProgressiveLoader } from "@/app/onboarding/components/ProgressiveLoader";
 import { type UserProfile } from "@/lib/api";
 
 type NavItem = {
@@ -32,7 +37,16 @@ const NAV_ITEMS: NavItem[] = [
   { id: "home", label: "Home", icon: Home },
   { id: "roadmap", label: "Roadmap", icon: Map },
   { id: "resume", label: "Resume", icon: FileText },
+  { id: "profile", label: "Profile", icon: User },
   { id: "internships", label: "Internship Optimizer", icon: Building2 },
+];
+
+const ROADMAP_STEPS = [
+  { text: "Analyzing your career goal...", icon: Target },
+  { text: "Mapping your skill gaps...", icon: Search },
+  { text: "Curating learning resources...", icon: BookOpen },
+  { text: "Structuring your timeline...", icon: Map },
+  { text: "Finalizing your roadmap...", icon: Sparkles },
 ];
 
 export default function DashboardPage() {
@@ -69,6 +83,12 @@ export default function DashboardPage() {
   useEffect(() => {
     loadProfile();
   }, []);
+
+  useEffect(() => {
+    if (profile?.targetRole && !profile.roadmap) {
+      setRoadmapGoal(profile.targetRole);
+    }
+  }, [profile]);
 
   const generateRoadmap = async () => {
     if (!profile || !roadmapGoal.trim()) return;
@@ -251,11 +271,9 @@ export default function DashboardPage() {
                   {/* Welcome Card */}
                   <div className="bg-secondary text-secondary-foreground rounded-lg p-6">
                     <h2 className="text-xl font-bold mb-2">
-                      Welcome back
-                      {profile?.persona === "student" && profile?.university
-                        ? `, ${profile.university.split(" ")[0]} student`
-                        : ""}
-                      !
+                      Welcome back, {profile?.name || (profile?.persona === "student" && profile?.university
+                        ? `${profile.university.split(" ")[0]} student`
+                        : "User")}!
                     </h2>
                     <p className="text-secondary-foreground/80">
                       Your personalized career accelerator is ready. Start
@@ -422,8 +440,14 @@ export default function DashboardPage() {
                       <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-6">
                         <Target className="w-8 h-8 text-accent" />
                       </div>
-                      <h3 className="text-xl font-bold text-foreground mb-2">What do you want to become?</h3>
-                      <p className="text-muted-foreground mb-8">Enter your dream role (e.g. "Senior Frontend Engineer", "AI Researcher") and we'll map out how to get there.</p>
+                      <h3 className="text-xl font-bold text-foreground mb-2">
+                        {profile.targetRole ? `Roadmap to ${profile.targetRole}` : "What do you want to become?"}
+                      </h3>
+                      <p className="text-muted-foreground mb-8">
+                        {profile.targetRole
+                          ? "We'll build a personalized learning path for this role."
+                          : "Enter your dream role (e.g. \"Senior Frontend Engineer\", \"AI Researcher\") and we'll map out how to get there."}
+                      </p>
 
                       <div className="flex flex-col gap-4">
                         <input
@@ -439,10 +463,9 @@ export default function DashboardPage() {
                           className="w-full px-6 py-3 bg-primary text-primary-foreground font-semibold rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                           {generatingRoadmap ? (
-                            <>
-                              <Loader2 className="w-5 h-5 animate-spin" />
-                              Generating your path...
-                            </>
+                            <div className="py-2">
+                              <ProgressiveLoader steps={ROADMAP_STEPS} />
+                            </div>
                           ) : (
                             <>
                               Generate Roadmap
@@ -560,6 +583,49 @@ export default function DashboardPage() {
                     Discover internship opportunities matched to your skills and
                     goals.
                   </p>
+                </div>
+              )}
+              {activeNav === "profile" && profile && (
+                <div className="space-y-6">
+                  {/* Verified Achievements */}
+                  <div className="bg-card border border-border rounded-lg p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-green-500/10 rounded-md">
+                        <Check className="w-5 h-5 text-green-500" />
+                      </div>
+                      <h3 className="font-semibold text-lg">Verified Achievements</h3>
+                    </div>
+                    {profile.analysis?.verification.verified.length ? (
+                      <div className="space-y-3">
+                        {profile.analysis.verification.verified.map((achievement, i) => (
+                          <div key={i} className="flex items-start gap-3 p-3 bg-green-500/5 rounded-md border border-green-500/10">
+                            <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5" />
+                            <span className="text-foreground">{achievement}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground italic">No verified achievements yet.</p>
+                    )}
+                  </div>
+
+                  {/* Skills Grid */}
+                  <div className="bg-card border border-border rounded-lg p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-accent/10 rounded-md">
+                        <Zap className="w-5 h-5 text-accent" />
+                      </div>
+                      <h3 className="font-semibold text-lg">Your Skills</h3>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.skills.map(skill => (
+                        <span key={skill} className="px-3 py-1.5 bg-accent text-accent-foreground rounded-full text-sm font-medium">
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
                 </div>
               )}
             </motion.div>
