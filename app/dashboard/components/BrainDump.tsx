@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useContextStore, Achievement } from "@/lib/stores/context-store";
-import { Send, Sparkles, Tag, Trash2, Calendar } from "lucide-react";
+import { Send, Sparkles, Trash2, Calendar } from "lucide-react";
 import { format } from "date-fns";
 
 export function BrainDump() {
@@ -23,9 +23,9 @@ export function BrainDump() {
         // Optimistic Update (Mock AI Response)
         addAchievement({
             rawText: input,
-            refinedText: `AI Refined: ${input} (Optimization simulated)`,
-            relatedSkills: [], // In real app, AI checks IDs
-            aiTags: ["Achievement", "New"],
+            refinedText: `• ${input}`, // Simple bullet point structure
+            relatedSkills: [],
+            aiTags: [], // No tags
         });
 
         setInput("");
@@ -131,21 +131,6 @@ function AchievementCard({
                 <p className="font-medium text-foreground text-sm leading-relaxed">
                     {achievement.refinedText}
                 </p>
-
-                {/* Original Input (Subtle) */}
-                <div className="text-xs text-muted-foreground/50 italic border-l-2 border-border pl-2">
-                    &quot;{achievement.rawText}&quot;
-                </div>
-
-                {/* Tags */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                    {achievement.aiTags.map(tag => (
-                        <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 bg-muted rounded text-[10px] uppercase font-bold text-muted-foreground tracking-wide">
-                            <Tag className="w-2.5 h-2.5" />
-                            {tag}
-                        </span>
-                    ))}
-                </div>
             </div>
         </motion.div>
     );

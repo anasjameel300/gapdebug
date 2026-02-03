@@ -45,17 +45,17 @@ export function LiveContext() {
             </header>
 
             {/* Bento Grid Layout */}
-            <div className="grid lg:grid-cols-12 gap-6 h-[600px]">
-                {/* Left: Neural Skill Cloud (7 cols) */}
-                <div className="lg:col-span-7 bg-card border border-border rounded-xl p-6 relative overflow-hidden group">
+            <div className="grid lg:grid-cols-12 gap-6 lg:h-[600px] h-auto">
+                {/* Left: Skills (7 cols) */}
+                <div className="lg:col-span-7 bg-card border border-border rounded-xl p-6 relative overflow-hidden group min-h-[400px]">
                     <div className="absolute inset-0 bg-gradient-to-br from-accent/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
                     <ModuleHeader
-                        title="Neural Skill Cloud"
+                        title="Skills"
                         icon={Zap}
                         action={
                             <div className="text-xs font-medium text-muted-foreground px-2 py-1 bg-background/50 rounded-md border border-border/50">
-                                0 Skills Active
+                                0 Active
                             </div>
                         }
                     />
@@ -65,12 +65,12 @@ export function LiveContext() {
                     </div>
                 </div>
 
-                {/* Right: Achievement Stream (5 cols) */}
-                <div className="lg:col-span-5 flex flex-col gap-6">
+                {/* Right: Log Stream (5 cols) */}
+                <div className="lg:col-span-5 flex flex-col gap-6 min-h-[500px] lg:min-h-0">
                     <div className="flex-1 bg-card border border-border rounded-xl p-6 flex flex-col relative overflow-hidden">
 
                         <ModuleHeader
-                            title="Memory Lane"
+                            title="My Log"
                             icon={History}
                         />
 
